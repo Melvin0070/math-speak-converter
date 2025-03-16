@@ -1,4 +1,4 @@
-import { useMCP, ValidationResult } from './mcp';
+import { useMCP, ValidationResult, clearMCPCache } from './mcp';
 
 /**
  * Specialized MCP for LaTeX validation with mathematical context
@@ -144,10 +144,256 @@ export const latexToNaturalLanguageMCP = async (latex: string): Promise<string> 
 
 /**
  * MCP for extracting mathematical expressions from images
- * This is a placeholder - the actual image processing will be handled elsewhere
+ * Uses OpenAI's vision capabilities and applies MCP for refinement
  */
 export const imageToLatexMCP = async (imageBase64: string): Promise<string> => {
-  // This function is a placeholder since we don't have direct image processing here
-  // The actual implementation will be in openai.ts using GPT-4 Vision
-  return 'Placeholder for image processing result';
+  // Import the openAI function dynamically to avoid circular dependencies
+  const { imageToLatex } = await import('./openai');
+  
+  // Create a File object from the base64 string
+  const binaryData = atob(imageBase64.split(',')[1]);
+  const byteArray = new Uint8Array(binaryData.length);
+  for (let i = 0; i < binaryData.length; i++) {
+    byteArray[i] = binaryData.charCodeAt(i);
+  }
+  const blob = new Blob([byteArray], { type: 'image/png' });
+  const imageFile = new File([blob], 'image.png', { type: 'image/png' });
+  
+  try {
+    // First pass: Get initial LaTeX from the image using OpenAI's vision model
+    const initialLatex = await imageToLatex(imageFile);
+    
+    // Second pass: Refine the LaTeX using MCP for mathematical accuracy
+    const result = await useMCP<string>(
+      'verify and refine the LaTeX extracted from an image for mathematical accuracy and consistency',
+      initialLatex,
+      (output) => output.trim(),
+      validateLatexMCP,
+      { 
+        maxIterations: 3, 
+        temperature: 0.1, 
+        verbose: false,
+        model: 'gpt-4o'
+      }
+    );
+    
+    return result.finalResult;
+  } catch (error) {
+    console.error('Error in MCP image to LaTeX conversion:', error);
+    throw error;
+  }
+};
+
+/**
+ * Advanced MCP for step-by-step equation solving with detailed work
+ */
+export const solveEquationWithStepsMCP = async (equation: string): Promise<{latex: string, steps: string[]}> => {
+  const result = await useMCP<{latex: string, steps: string[]}>(
+    'solve the mathematical equation step-by-step with clear explanations',
+    equation,
+    (output) => {
+      try {
+        // Try to parse JSON output if it's in that format
+        if (output.startsWith('{') && output.endsWith('}')) {
+          return JSON.parse(output);
+        }
+        
+        // Otherwise, try to extract solution and steps
+        const solutionMatch = output.match(/Solution:\s*(.*?)(?:\n|$)/i);
+        const solution = solutionMatch ? solutionMatch[1].trim() : '';
+        
+        const steps = output
+          .split('\n')
+          .filter(line => line.trim().length > 0)
+          .map(line => line.trim());
+        
+        return {
+          latex: solution,
+          steps: steps.filter(step => step !== solution)
+        };
+      } catch (e) {
+        // Fallback if parsing fails
+        return {
+          latex: output.trim(),
+          steps: ["Could not parse steps from the solution"]
+        };
+      }
+    },
+    (result) => {
+      const hasSolution = result.latex && result.latex.length > 0;
+      const hasSteps = result.steps && result.steps.length > 0;
+      
+      return {
+        valid: hasSolution && hasSteps,
+        feedback: !hasSolution 
+          ? 'Missing final solution in LaTeX format' 
+          : (!hasSteps ? 'Missing solution steps' : undefined),
+        confidence: hasSolution && hasSteps ? 0.9 : 0.5
+      };
+    },
+    { 
+      maxIterations: 3, 
+      temperature: 0.2,
+      verbose: false,
+      model: 'gpt-4o',
+      confidenceThreshold: 0.8
+    }
+  );
+  
+  return result.finalResult;
+};
+
+/**
+ * MCP for handling complex mathematical proofs
+ */
+export const generateMathProofMCP = async (theorem: string): Promise<{proof: string, latex: string}> => {
+  const result = await useMCP<{proof: string, latex: string}>(
+    'generate a rigorous mathematical proof for the given theorem or statement',
+    theorem,
+    (output) => {
+      const proofTextMatch = output.match(/Proof:\s*([\s\S]*?)(?:\n\nLaTeX:|$)/i);
+      const proofText = proofTextMatch ? proofTextMatch[1].trim() : output.trim();
+      
+      const latexMatch = output.match(/LaTeX:\s*([\s\S]*?)$/i);
+      const latex = latexMatch ? latexMatch[1].trim() : '';
+      
+      return {
+        proof: proofText,
+        latex: latex
+      };
+    },
+    (result) => {
+      const validProof = result.proof && result.proof.length > 50; // Arbitrary minimum length
+      const validLatex = result.latex && validateLatexMCP(result.latex).valid;
+      
+      return {
+        valid: validProof && validLatex,
+        feedback: !validProof 
+          ? 'The proof is not detailed enough' 
+          : (!validLatex ? 'The LaTeX formatting has issues' : undefined),
+        confidence: validProof && validLatex ? 0.9 : 0.6
+      };
+    },
+    { 
+      maxIterations: 3, 
+      temperature: 0.3,
+      verbose: false,
+      model: 'gpt-4o',
+      confidenceThreshold: 0.8
+    }
+  );
+  
+  return result.finalResult;
+};
+
+/**
+ * MCP for converting between different mathematical notation systems
+ */
+export const convertNotationSystemMCP = async (
+  expression: string, 
+  fromSystem: 'latex' | 'asciimath' | 'mathml' | 'wolfram', 
+  toSystem: 'latex' | 'asciimath' | 'mathml' | 'wolfram'
+): Promise<string> => {
+  const result = await useMCP<string>(
+    `convert mathematical notation from ${fromSystem} to ${toSystem}`,
+    expression,
+    (output) => output.trim(),
+    (result) => {
+      // Basic validation based on target notation system
+      let valid = result.length > 0;
+      
+      if (toSystem === 'latex') {
+        valid = validateLatexMCP(result).valid;
+      } else if (toSystem === 'mathml') {
+        valid = result.includes('<math') && result.includes('</math>');
+      } else if (toSystem === 'asciimath') {
+        valid = !result.includes('\\') && !result.includes('<math');
+      } else if (toSystem === 'wolfram') {
+        valid = !result.includes('\\') && !result.includes('<math');
+      }
+      
+      return {
+        valid,
+        feedback: !valid ? `The result doesn't appear to be valid ${toSystem}` : undefined,
+        confidence: valid ? 0.85 : 0.5
+      };
+    },
+    { 
+      maxIterations: 2, 
+      temperature: 0.2,
+      verbose: false,
+      model: 'gpt-4o'
+    }
+  );
+  
+  return result.finalResult;
+};
+
+/**
+ * MCP for analyzing mathematical expressions and providing educational explanations
+ */
+export const explainMathExpressionMCP = async (expression: string, level: 'elementary' | 'high-school' | 'undergraduate' | 'graduate' = 'high-school'): Promise<{explanation: string, concepts: string[]}> => {
+  const result = await useMCP<{explanation: string, concepts: string[]}>(
+    `explain this mathematical expression at a ${level} level with key concepts identified`,
+    expression,
+    (output) => {
+      // Try to parse as JSON first
+      try {
+        if (output.startsWith('{') && output.endsWith('}')) {
+          const parsed = JSON.parse(output);
+          if (parsed.explanation && parsed.concepts) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        // Fall through to manual parsing
+      }
+      
+      // Manual parsing
+      const explanationMatch = output.match(/Explanation:\s*([\s\S]*?)(?:\n\nConcepts:|$)/i);
+      const explanation = explanationMatch ? explanationMatch[1].trim() : output.trim();
+      
+      const conceptsMatch = output.match(/Concepts:\s*([\s\S]*?)$/i);
+      let concepts: string[] = [];
+      if (conceptsMatch) {
+        concepts = conceptsMatch[1]
+          .split('\n')
+          .map(line => line.replace(/^[•\-*]\s*/, '').trim())
+          .filter(Boolean);
+      }
+      
+      return {
+        explanation,
+        concepts
+      };
+    },
+    (result) => {
+      const validExplanation = result.explanation && result.explanation.length > 50;
+      const validConcepts = result.concepts && result.concepts.length > 0;
+      
+      return {
+        valid: validExplanation && validConcepts,
+        feedback: !validExplanation 
+          ? 'The explanation is not detailed enough' 
+          : (!validConcepts ? 'No key concepts were identified' : undefined),
+        confidence: validExplanation && validConcepts ? 0.9 : 0.6
+      };
+    },
+    { 
+      maxIterations: 2, 
+      temperature: 0.3,
+      verbose: false,
+      model: 'gpt-4o',
+      confidenceThreshold: 0.8
+    }
+  );
+  
+  return result.finalResult;
+};
+
+/**
+ * Reset the MCP system by clearing caches
+ */
+export const resetMathMCPSystem = (): void => {
+  clearMCPCache();
 };

@@ -2,7 +2,10 @@ import { transcribeAudio, textToSpeech, imageToLatex as openAIImageToLatex } fro
 import { 
   naturalLanguageToLatexMCP, 
   latexToNaturalLanguageMCP, 
-  validateLatexMCP 
+  validateLatexMCP,
+  imageToLatexMCP,
+  solveEquationWithStepsMCP,
+  explainMathExpressionMCP
 } from './math-mcp';
 import { useMCP } from './mcp';
 
@@ -59,26 +62,31 @@ export const speechToLatex = async (audioBlob: Blob): Promise<ConversionResult> 
   }
 };
 
-// Enhanced imageToLatex using MCP for improved accuracy
+// Enhanced imageToLatex using more advanced MCP approach
 export const imageToLatex = async (imageFile: File): Promise<string> => {
   try {
-    // Use OpenAI's imageToLatex function which internally uses GPT-4 Vision
-    const initialLatex = await openAIImageToLatex(imageFile);
+    // Convert File to base64 for our MCP function
+    const base64Image = await readFileAsBase64(imageFile);
     
-    // Then further refine it with MCP for mathematical accuracy
-    const mcpResult = await useMCP<string>(
-      'verify and refine the LaTeX extracted from an image for mathematical accuracy',
-      initialLatex,
-      (output) => output.trim(),
-      validateLatexMCP,
-      { maxIterations: 2, temperature: 0.2, verbose: false }
-    );
-    
-    return mcpResult.finalResult;
+    // Use the enhanced imageToLatexMCP function
+    return await imageToLatexMCP(base64Image);
   } catch (error) {
     console.error('Error in MCP image to LaTeX conversion:', error);
     throw error;
   }
+};
+
+// Helper function to convert File to base64 string
+const readFileAsBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64String = reader.result as string;
+      resolve(base64String);
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
 };
 
 // Convert image to LaTeX with speech using MCP
@@ -152,6 +160,62 @@ export const latexToSpeech = async (latex: string): Promise<ConversionResult> =>
     };
   } catch (error) {
     console.error('Error in MCP LaTeX to speech conversion:', error);
+    throw error;
+  }
+};
+
+/**
+ * Advanced service to solve equations with step-by-step work
+ */
+export const solveEquationWithSteps = async (equation: string): Promise<{latex: string, steps: string[], audioUrl?: string}> => {
+  try {
+    // Use the specialized equation solving MCP
+    const { latex, steps } = await solveEquationWithStepsMCP(equation);
+    
+    // Convert the solution explanation to speech
+    const stepsText = steps.join(". ");
+    const audioBuffer = await textToSpeech(stepsText);
+    
+    // Create audio URL
+    const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    
+    return {
+      latex,
+      steps,
+      audioUrl
+    };
+  } catch (error) {
+    console.error('Error in equation solving:', error);
+    throw error;
+  }
+};
+
+/**
+ * Service to explain mathematical concepts with educational context
+ */
+export const explainMathExpression = async (
+  expression: string, 
+  level: 'elementary' | 'high-school' | 'undergraduate' | 'graduate' = 'high-school'
+): Promise<{explanation: string, concepts: string[], audioUrl?: string}> => {
+  try {
+    // Use the specialized math explanation MCP
+    const { explanation, concepts } = await explainMathExpressionMCP(expression, level);
+    
+    // Convert the explanation to speech
+    const audioBuffer = await textToSpeech(explanation);
+    
+    // Create audio URL
+    const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    
+    return {
+      explanation,
+      concepts,
+      audioUrl
+    };
+  } catch (error) {
+    console.error('Error in math explanation:', error);
     throw error;
   }
 };
