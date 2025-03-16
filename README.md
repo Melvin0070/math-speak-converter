@@ -1,24 +1,9 @@
-# Welcome to your Lovable project
-
+# Bidirectional Audio Conversion for LaTeX: Enhancing Accessibility and Workflow in STEM
 ## Project info
 
-**URL**: https://lovable.dev/projects/11c932c5-26cb-4d9d-828d-53b1a9e7210c
+Convert between spoken math and LaTeX notation in real-time with precision and elegance.
 
-## How can I edit this code?
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/11c932c5-26cb-4d9d-828d-53b1a9e7210c) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
 Follow these steps:
 
@@ -59,11 +44,3 @@ This project is built with .
 - React
 - shadcn-ui
 - Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/11c932c5-26cb-4d9d-828d-53b1a9e7210c) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
