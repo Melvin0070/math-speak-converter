@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { initializeOpenAI } from '@/services/openai';
-import { speechToLatex, latexToSpeech } from '@/services/converter';
+import { speechToLatex, latexToSpeech, imageToSpeech } from '@/services/converter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 
-type ConversionType = 'speechToLatex' | 'latexToSpeech';
+type ConversionType = 'speechToLatex' | 'latexToSpeech' | 'imageToSpeech';
 type ConversionResult = {
   text: string;
   latex: string;
@@ -27,6 +27,7 @@ const Index: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('speech-to-latex');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [currentResult, setCurrentResult] = useState<ConversionResult | null>(null);
+  const [conversionType, setConversionType] = useState<ConversionType>('speechToLatex');
   const { toast } = useToast();
 
   const handleApiKeySubmit = () => {
@@ -67,6 +68,7 @@ const Index: React.FC = () => {
     try {
       const result = await speechToLatex(audioBlob);
       setCurrentResult(result);
+      setConversionType('speechToLatex');
       toast({
         title: 'Conversion Complete',
         description: 'Your speech has been converted to LaTeX.',
@@ -93,6 +95,7 @@ const Index: React.FC = () => {
     try {
       const result = await latexToSpeech(latex);
       setCurrentResult(result);
+      setConversionType('latexToSpeech');
       toast({
         title: 'Conversion Complete',
         description: 'Your LaTeX has been converted to speech.',
@@ -102,6 +105,33 @@ const Index: React.FC = () => {
       toast({
         title: 'Conversion Error',
         description: 'Failed to convert your LaTeX to speech.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleImageSubmitted = async (imageFile: File) => {
+    if (!isApiKeySet) {
+      setShowApiKeyDialog(true);
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const result = await imageToSpeech(imageFile);
+      setCurrentResult(result);
+      setConversionType('imageToSpeech');
+      toast({
+        title: 'Conversion Complete',
+        description: 'Your image has been converted to LaTeX and speech.',
+      });
+    } catch (error) {
+      console.error('Error processing image:', error);
+      toast({
+        title: 'Conversion Error',
+        description: 'Failed to convert your image to LaTeX and speech.',
         variant: 'destructive',
       });
     } finally {
@@ -138,7 +168,8 @@ const Index: React.FC = () => {
             
             <TabsContent value="latex-to-speech" className="mt-0">
               <LaTeXInput 
-                onLatexSubmitted={handleLatexSubmitted} 
+                onLatexSubmitted={handleLatexSubmitted}
+                onImageSubmitted={handleImageSubmitted} 
                 isProcessing={isProcessing} 
               />
             </TabsContent>
@@ -147,7 +178,7 @@ const Index: React.FC = () => {
               <div className="md:col-span-2">
                 <ConversionDisplay 
                   result={currentResult} 
-                  conversionType={activeTab === 'speech-to-latex' ? 'speechToLatex' : 'latexToSpeech'} 
+                  conversionType={conversionType === 'imageToSpeech' ? 'latexToSpeech' : conversionType} 
                 />
               </div>
             )}

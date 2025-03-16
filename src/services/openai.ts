@@ -1,4 +1,3 @@
-
 import OpenAI from 'openai';
 import { toast } from '@/components/ui/use-toast';
 
@@ -68,6 +67,53 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
     toast({
       title: 'Transcription Error',
       description: 'Failed to transcribe audio. Please try again.',
+      variant: 'destructive',
+    });
+    throw error;
+  }
+};
+
+// Convert image to LaTeX using GPT-4o Vision
+export const imageToLatex = async (imageFile: File): Promise<string> => {
+  try {
+    const client = getOpenAIClient();
+    
+    // Convert image to base64
+    const base64Image = await readFileAsBase64(imageFile);
+    
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a specialized mathematical notation converter. You will be given an image containing mathematical expressions. Convert all the math expressions in the image to LaTeX. Return ONLY the LaTeX code with no explanation or additional text. Do not include backticks or code blocks in your response.'
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Convert all math expressions in this image to LaTeX.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: base64Image,
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+    });
+    
+    const latexResult = response.choices[0]?.message?.content?.trim() || '';
+    return latexResult;
+  } catch (error) {
+    console.error('Error converting image to LaTeX:', error);
+    toast({
+      title: 'Conversion Error',
+      description: 'Failed to convert image to LaTeX. Please try again.',
       variant: 'destructive',
     });
     throw error;
@@ -172,4 +218,17 @@ export const textToSpeech = async (text: string): Promise<ArrayBuffer> => {
     });
     throw error;
   }
+};
+
+// Helper function to convert File to base64 string
+const readFileAsBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64String = reader.result as string;
+      resolve(base64String);
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
 };

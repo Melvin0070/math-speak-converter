@@ -1,5 +1,5 @@
 
-import { transcribeAudio, textToLatex, latexToText, textToSpeech } from './openai';
+import { transcribeAudio, textToLatex, latexToText, textToSpeech, imageToLatex } from './openai';
 
 export interface ConversionResult {
   text: string;
@@ -22,6 +22,33 @@ export const speechToLatex = async (audioBlob: Blob): Promise<ConversionResult> 
     };
   } catch (error) {
     console.error('Error in speech to LaTeX conversion:', error);
+    throw error;
+  }
+};
+
+// Convert image to LaTeX
+export const imageToSpeech = async (imageFile: File): Promise<ConversionResult> => {
+  try {
+    // Step 1: Convert image to LaTeX
+    const latex = await imageToLatex(imageFile);
+    
+    // Step 2: Convert LaTeX to natural language text
+    const text = await latexToText(latex);
+    
+    // Step 3: Convert text to speech
+    const audioBuffer = await textToSpeech(text);
+    
+    // Step 4: Create a URL for the audio
+    const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    
+    return {
+      text,
+      latex,
+      audioUrl,
+    };
+  } catch (error) {
+    console.error('Error in image to speech conversion:', error);
     throw error;
   }
 };
