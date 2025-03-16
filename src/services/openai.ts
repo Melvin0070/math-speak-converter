@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { toast } from '@/components/ui/use-toast';
+import { validateLatexMCP } from './math-mcp';
 
 // Type for OpenAI configuration
 export interface OpenAIConfig {
@@ -73,20 +74,41 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
   }
 };
 
-// Convert image to LaTeX using GPT-4o Vision
 export const imageToLatex = async (imageFile: File): Promise<string> => {
   try {
     const client = getOpenAIClient();
     
     // Convert image to base64
     const base64Image = await readFileAsBase64(imageFile);
-    
+
+    // Define MCP prompt for image analysis
+    const systemPrompt = `You are a specialized mathematical notation converter that follows the Model Context Protocol (MCP).
+Your task is to convert all mathematical expressions in an image to LaTeX.
+
+Follow these steps:
+1. Analyze the image carefully, identifying all mathematical expressions
+2. Parse each expression into its component parts
+3. Convert each component to proper LaTeX notation
+4. Maintain the structural integrity of complex expressions
+5. Double-check your work for accuracy
+6. Ensure all mathematical symbols and notations are correctly represented
+
+IMPORTANT: Your response must follow this exact format:
+<thinking>
+[Detail your step-by-step analysis of the mathematical expressions in the image]
+</thinking>
+
+<result>
+[ONLY the LaTeX code with no explanation or additional text]
+</result>`;
+
+    // Make the API request
     const response = await client.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: 'You are a specialized mathematical notation converter. You will be given an image containing mathematical expressions. Convert all the math expressions in the image to LaTeX. Return ONLY the LaTeX code with no explanation or additional text. Do not include backticks or code blocks in your response.'
+          content: systemPrompt
         },
         {
           role: 'user',
@@ -104,18 +126,67 @@ export const imageToLatex = async (imageFile: File): Promise<string> => {
           ]
         }
       ],
-      temperature: 0.1,
+      temperature: 0.2,
     });
     
-    const latexResult = response.choices[0]?.message?.content?.trim() || '';
-    return latexResult;
+    const content = response.choices[0]?.message?.content?.trim() || '';
+    
+    // Extract components using regex
+    const thinkingMatch = content.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+    const thinking = thinkingMatch ? thinkingMatch[1].trim() : '';
+    
+    const resultMatch = content.match(/<result>([\s\S]*?)<\/result>/i);
+    const result = resultMatch ? resultMatch[1].trim() : content;
+    
+    // Validate the result
+    const validation = validateLatexMCP(result);
+    
+    // If initial result is invalid, try a second time with feedback
+    if (!validation.valid) {
+      // Create a refinement prompt
+      const refinementPrompt = `You previously analyzed a mathematical expression from an image, but your LaTeX has validation issues: ${validation.feedback}
+      
+Here was your previous thinking:
+${thinking}
+
+Here was your previous result:
+${result}
+
+Please fix these issues and provide corrected LaTeX.
+
+IMPORTANT: Your response must follow this exact format:
+<thinking>
+[Detail your step-by-step refinement process]
+</thinking>
+
+<result>
+[ONLY the corrected LaTeX code with no explanation or additional text]
+</result>`;
+
+      // Make a refinement request
+      const refinementResponse = await client.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: refinementPrompt
+          }
+        ],
+        temperature: 0.1,
+      });
+      
+      const refinementContent = refinementResponse.choices[0]?.message?.content?.trim() || '';
+      
+      // Extract the refined result
+      const refinedResultMatch = refinementContent.match(/<result>([\s\S]*?)<\/result>/i);
+      const refinedResult = refinedResultMatch ? refinedResultMatch[1].trim() : refinementContent;
+      
+      return refinedResult;
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error converting image to LaTeX:', error);
-    toast({
-      title: 'Conversion Error',
-      description: 'Failed to convert image to LaTeX. Please try again.',
-      variant: 'destructive',
-    });
     throw error;
   }
 };
