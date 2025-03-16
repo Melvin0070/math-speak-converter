@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Copy, VolumeUp, Check } from 'lucide-react';
+import { Copy, Volume, Check } from 'lucide-react';
 import 'katex/dist/katex.min.css';
 import Latex from 'react-latex-next';
 import { formatLatexForDisplay } from '@/utils/math';
@@ -109,7 +109,7 @@ const ConversionDisplay: React.FC<ConversionDisplayProps> = ({ result, conversio
                 onClick={handlePlayAudio}
                 className="w-full"
               >
-                <VolumeUp className="mr-2 h-4 w-4" />
+                <Volume className="mr-2 h-4 w-4" />
                 Play Audio
               </Button>
             </>

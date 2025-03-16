@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { VolumeUp, Loader2 } from 'lucide-react';
+import { Volume, Loader2 } from 'lucide-react';
 import { isValidLatex } from '@/utils/math';
 import 'katex/dist/katex.min.css';
 import Latex from 'react-latex-next';
@@ -81,7 +81,7 @@ const LaTeXInput: React.FC<LaTeXInputProps> = ({ onLatexSubmitted, isProcessing 
             </>
           ) : (
             <>
-              <VolumeUp className="mr-2 h-4 w-4" />
+              <Volume className="mr-2 h-4 w-4" />
               Convert to Speech
             </>
           )}
